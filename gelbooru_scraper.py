@@ -11,14 +11,12 @@ def stringify_tags(tags: list[str]) -> str:
 	return '+'.join(tags).replace(':', '%3a')
 
 def get_image_thumbnails(**kwargs) -> list[bs4.Tag]:
-
 	''' 
 	valid kwargs: 
 		page_start_idx: int,
 		end_idx: int,
 		tags: list[str]
 	'''
-
 	session = requests.Session()
 	start_idx: int = kwargs['page_start_idx'] if 'page_start_idx' in kwargs else 0
 	end_idx: int = kwargs['end_idx'] if 'end_idx' in kwargs else -1
@@ -35,7 +33,7 @@ def get_image_thumbnails(**kwargs) -> list[bs4.Tag]:
 		soup = bs4.BeautifulSoup(resp.text, features='lxml')
 		if end_idx == -1:
 			thumbnails += \
-				[img['src'] for img in soup.find_all('img') \
+				[img for img in soup.find_all('img') \
 				if 'img3' in img['src']]
 			do_again = True
 		else:
@@ -69,6 +67,7 @@ def scrape_image_from_post(url, dir_path='gelbooru_scraper_downloads', session=N
 
 def test():
 	main()
+	# tags = ['rating:general', 'no_humans']
 
 def main():
 	if not os.path.exists('gelbooru_scraper_downloads/'):
