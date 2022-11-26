@@ -1,13 +1,6 @@
 
-'''
-todo:
-
-- review python threading
-- write function to multithread downloading the images
-'''
-
-####
-
+import os
+import shutil
 import requests
 import bs4
 import threading
@@ -52,7 +45,7 @@ def get_image_thumbnails(**kwargs) -> list[bs4.Tag]:
 		soup = bs4.BeautifulSoup(resp.text, features='lxml')
 
 		if end_idx == -1:
-		
+
 			thumbnails += \
 				[img['src'] for img in soup.find_all('img') \
 				if 'img3' in img['src']]
@@ -83,25 +76,35 @@ def get_image_thumbnails(**kwargs) -> list[bs4.Tag]:
 	return thumbnails
 
 
+def scrape_image_from_post(url, dir_path='gelbooru_scraper_downloads', session=None) -> None:
+	
+	if session is None:
+		resp = requests.get(url)
+	else:
+		resp = session.get(url)
+	
+	soup = bs4.BeautifulSoup(resp.text, features='lxml')
+	
+	img: bs4.Tag = soup.find('img', {'id': 'image'})
+
+	if session is None:
+		img_resp = requests.get(img['src'], stream=True)
+	else:
+		img_resp = session.get(img['src'], stream=True)
+			
+	with open(dir_path + '/' + img['src'].split('/')[-1], 'wb') as f:
+		shutil.copyfileobj(img_resp.raw, f)
+
+
 def test():
 
-	start = 20
-	end = 110
+	main()
 
-	thumbnails: list[bs4.Tag] = get_image_thumbnails(
-		tags=['rating:general'],
-		page_start_idx=start,
-		end_idx=end
-	)
 
-	for i, thumbnail in enumerate(thumbnails, start=start):
-		print(f'{i} -- {thumbnail.parent["href"]}')
-	
-	# Visit each URL of the parent link of the thumbnail
-	# and extract the URL of the image
-	# then download it.
-	
-	# Use multithreading.
+def main():
+
+	if not os.path.exists('gelbooru_scraper_downloads/'):
+		os.mkdir('gelbooru_scraper_downloads')
 
 
 if __name__ == '__main__':
