@@ -23,8 +23,8 @@ def get_image_thumbnails(**kwargs) -> list[bs4.Tag]:
 	tags: list[str] = kwargs['tags'] if 'tags' in kwargs else []
 	page_start_idx: int = start_idx
 	thumbnails: list[bs4.Tag] = []
-	do_again = True
-	while do_again:	
+	is_next_page_needed = True
+	while is_next_page_needed:	
 		resp = session.get(
 			BASE_SEARCH_URL 
 			+ f'&tags={stringify_tags(tags)}' 
@@ -35,7 +35,7 @@ def get_image_thumbnails(**kwargs) -> list[bs4.Tag]:
 			thumbnails += \
 				[img for img in soup.find_all('img') \
 				if 'img3' in img['src']]
-			do_again = True
+			is_next_page_needed = True
 		else:
 			for img in soup.find_all('img'):
 				if not 'img3' in img['src']:
@@ -43,7 +43,7 @@ def get_image_thumbnails(**kwargs) -> list[bs4.Tag]:
 				thumbnails.append(img)
 				if len(thumbnails) > (end_idx - start_idx):
 					return thumbnails
-			do_again = page_start_idx <= end_idx
+			is_next_page_needed = page_start_idx <= end_idx
 		# break if length of thumbnails has not changed from last iteration
 		# i.e. blank page reached, ends
 		if page_start_idx == len(thumbnails):
