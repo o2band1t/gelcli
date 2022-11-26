@@ -13,12 +13,12 @@ def stringify_tags(tags: list[str]) -> str:
 def get_image_thumbnails(**kwargs) -> list[bs4.Tag]:
 	''' 
 	valid kwargs: 
-		page_start_idx: int,
+		start_idx: int,
 		end_idx: int,
 		tags: list[str]
 	'''
 	session = requests.Session()
-	start_idx: int = kwargs['page_start_idx'] if 'page_start_idx' in kwargs else 0
+	start_idx: int = kwargs['start_idx'] if 'start_idx' in kwargs else 0
 	end_idx: int = kwargs['end_idx'] if 'end_idx' in kwargs else -1
 	tags: list[str] = kwargs['tags'] if 'tags' in kwargs else []
 	page_start_idx: int = start_idx
@@ -37,11 +37,12 @@ def get_image_thumbnails(**kwargs) -> list[bs4.Tag]:
 				if 'img3' in img['src']]
 			is_next_page_needed = True
 		else:
+			expected_length = end_idx - start_idx + 1
 			for img in soup.find_all('img'):
 				if not 'img3' in img['src']:
 					continue
 				thumbnails.append(img)
-				if len(thumbnails) > (end_idx - start_idx):
+				if len(thumbnails) == expected_length:
 					return thumbnails
 			is_next_page_needed = page_start_idx <= end_idx
 		# break if length of thumbnails has not changed from last iteration
@@ -67,7 +68,13 @@ def scrape_image_from_post(url, dir_path='gelbooru_scraper_downloads', session=N
 
 def test():
 	main()
-	# tags = ['rating:general', 'no_humans']
+	th = get_image_thumbnails(
+		start_idx = 5,
+		end_idx = 10,
+		tags = ['ankoman']
+	)
+	for t in th:
+		print(t['src'])
 
 def main():
 	if not os.path.exists('gelbooru_scraper_downloads/'):
