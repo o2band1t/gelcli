@@ -7,41 +7,125 @@ import threading
 import queue
 
 
-'''
-problem:
-	
-some tags are uploaded to so frequently (e.g. rating:general)
-that when another request for a PAGE is made (using &pid=),
-the previously scraped images on the page have already
-shifted to the right in position 
-since the last time a PAGE was requested,
-causing some images in the downloads folder
-to be written to MORE THAN ONCE, resulting in 
-less than the expected amount of images scraped
-'''
-
-
 BASE_SEARCH_URL = 'https://gelbooru.com/index.php?page=post&s=list'
 
 
-def stringify_tags(tags: list[str]) -> str:
+def _stringify_tags(tags: list[str]) -> str:
 	return '+'.join(tags).replace(':', '%3a')
 
 
-def get_image_thumbnails(**kwargs) -> list[bs4.Tag]:
+def _thumbnail_scrape_worker(
+	page_start_idx,
+	page_end_idx,
+	thumbnails,
+	session,
+	results_page_url, 
+	is_blank_page_reached, 
+	lock
+) -> None:
+	
+	resp = session.get(results_page_url)
+	print(resp.status_code) #dbg
+	soup = bs4.BeautifulSoup(resp.text, features='lxml')
+	thumbnails_list: list[bs4.Tag] = \
+		[img for img in soup.find_all('img') \
+		if 'img3' in img['src']]
+	
+	with lock:
+		if len(thumbnails_list) == 0:
+			is_blank_page_reached[0] = True
+			return
+		for th in thumbnails_list[:page_end_idx + 1]:			
+			thumbnails.add(th)
 
-	''' 
-	valid kwargs: 
-		start_idx: int,
-		end_idx: int,
-		tags: list[str]
+
+def _download_worker(scrape_queue, dir_path, session) -> None:
+	while not scrape_queue.empty():
+		download_image_from_post(
+			scrape_queue.get(),
+			dir_path,
+			session
+		)
+		scrape_queue.task_done()
+
+
+# API for scraping gelbooru
+
+def threaded_get_image_thumbnails(tags=None, page_start_num=0, end_num=-1, max_threads=30) -> set[bs4.Tag]:
 	'''
-
+	PROBLEM:
+	for large requests (~16,000 as per test), 
+	not all thumbnails are put in the thumbnails list by the threads 
+	'''
+	if tags is None:
+		tags = []
 	session = requests.Session()
-	start_idx: int = kwargs['start_idx'] if 'start_idx' in kwargs else 0
-	end_idx: int = kwargs['end_idx'] if 'end_idx' in kwargs else -1
-	tags: list[str] = kwargs['tags'] if 'tags' in kwargs else []
-	page_start_idx: int = start_idx
+	lock = threading.Lock()
+	thumbnails: set[bs4.Tag] = set()
+	is_blank_page_reached: list[bool] = [False]
+	
+	threads: list[threading.Thread] = []
+	
+	while is_blank_page_reached[0] is False:		
+		if threading.active_count() >= max_threads:
+			print('max threads reached!') #dbg
+			continue
+		
+		results_page_url = \
+			BASE_SEARCH_URL \
+			+ f'&tags={_stringify_tags(tags)}' \
+			+ f'&pid={page_start_num}'
+		
+		if (end_num == -1) or (end_num - page_start_num > 41):
+			t = threading.Thread(
+				target=_thumbnail_scrape_worker,
+				args=(
+					0, 41, thumbnails, 
+					session, results_page_url,
+					is_blank_page_reached, lock
+				),
+				daemon=True
+			)
+			threads.append(t)
+			t.start()
+			#print(f'start -- {page_start_num} ; end -- {end_num}') #dbg
+			page_start_num += 41
+		else:
+			t = threading.Thread(
+				target=_thumbnail_scrape_worker,
+				args=(
+					0, (end_num - page_start_num), thumbnails, 
+					session, results_page_url,
+					is_blank_page_reached, lock
+				),
+				daemon=True
+			)
+			threads.append(t)
+			t.start()
+			print(f'start -- {page_start_num} ; end -- {end_num}') #dbg
+			break
+	
+	for t in threads:
+		t.join()
+
+	return thumbnails
+
+
+def get_image_thumbnails(tags, page_start_num, end_num) -> list[bs4.Tag]:
+	'''
+	PROBLEM:
+
+	some tags are uploaded to so frequently (e.g. rating:general)
+	that when another request for a PAGE is made (using &pid=),
+	the previously scraped images on the page have already
+	shifted to the right in position 
+	since the last time a PAGE was requested,
+	causing some images in the downloads folder
+	to be written to MORE THAN ONCE, resulting in 
+	less than the expected amount of images scraped
+	'''
+	session = requests.Session()
+	page_start1_idx: int = page_start_num
 	thumbnails: list[bs4.Tag] = []
 	
 	is_next_page_needed = True
@@ -49,35 +133,36 @@ def get_image_thumbnails(**kwargs) -> list[bs4.Tag]:
 		resp = session.get(
 			BASE_SEARCH_URL 
 			+ f'&tags={stringify_tags(tags)}' 
-			+ f'&pid={page_start_idx}'
+			+ f'&pid={page_start1_idx}'
 		)
 		soup = bs4.BeautifulSoup(resp.text, features='lxml')
 		
-		if end_idx == -1:
+		if end_num == -1:
 			thumbnails += \
 				[img for img in soup.find_all('img') \
 				if 'img3' in img['src']]
 			is_next_page_needed = True
 		else:
-			expected_length = end_idx - start_idx + 1
+			expected_length = end_num - page_start_num + 1
 			for img in soup.find_all('img'):
 				if not 'img3' in img['src']:
 					continue
 				thumbnails.append(img)
 				if len(thumbnails) == expected_length:
 					return thumbnails
-			is_next_page_needed = page_start_idx <= end_idx
+			is_next_page_needed = page_start1_idx <= end_num
+			
 		# break if length of thumbnails has not changed from last iteration
 		# i.e. blank page reached, ends
-		
-		if page_start_idx == len(thumbnails):
+		if page_start1_idx == len(thumbnails):
 			break
-		page_start_idx = len(thumbnails)
+		page_start1_idx = len(thumbnails)
 	
 	return thumbnails
 
 
-def scrape_image_from_post(url, dir_path, session=None) -> None:
+
+def download_image_from_post(url, dir_path, session=None) -> None:
 	if session is None:
 		resp = requests.get(url)
 	else:
@@ -95,35 +180,26 @@ def scrape_image_from_post(url, dir_path, session=None) -> None:
 		shutil.copyfileobj(img_resp.raw, f)
 
 
-def scrape_worker(scrape_queue, dir_path, session) -> None:
-	while not scrape_queue.empty():
-		scrape_image_from_post(
-			scrape_queue.get(),
-			dir_path,
-			session
-		)
-		scrape_queue.task_done()
+## Tests ##
 
-
-def main():
+def test_threaded_thumbnail():
 	if not os.path.exists('gelbooru_scraper_downloads/'):
 		os.mkdir('gelbooru_scraper_downloads')
 
-
-def test():
-
-	main()
-	
 	dir_path = 'gelbooru_scraper_downloads'
 	session = requests.Session()
 	
-	ths = get_image_thumbnails(
-		start_idx=0,
-		end_idx=100,
-		tags=['kakifly']
+	ths: set = threaded_get_image_thumbnails(
+		tags=['outdoors', 'rating:general', '1girl'],
+		page_start_num=0,
+		end_num=-1,
+		max_threads=30
 	)
-	print(len(ths)) #dbg
 	
+	print(len(ths)) #dbg
+	#for th in ths:
+	#	print(th['src']) #dbg
+	'''
 	q = queue.Queue()
 	for th in ths:
 		post_link = th.parent['href']
@@ -132,13 +208,17 @@ def test():
 	max_threads = 30
 	for _ in range(max_threads):
 		t = threading.Thread(
-			target=scrape_worker,
+			target=_download_worker,
 			args=(q, dir_path, session),
 			daemon=True
 		)
 		t.start()
 	
 	q.join()
+	'''
+
+
+def test_thumbnail()
 
 
 if __name__ == '__main__':
