@@ -161,7 +161,6 @@ def get_image_thumbnails(tags, page_start_num, end_num) -> list[bs4.Tag]:
 	return thumbnails
 
 
-
 def download_image_from_post(url, dir_path, session=None) -> None:
 	if session is None:
 		resp = requests.get(url)
@@ -179,49 +178,5 @@ def download_image_from_post(url, dir_path, session=None) -> None:
 	with open(dir_path + '/' + img['src'].split('/')[-1], 'wb') as f:
 		shutil.copyfileobj(img_resp.raw, f)
 
-
-## Tests ##
-
-def test_threaded_thumbnail():
-	if not os.path.exists('gelbooru_scraper_downloads/'):
-		os.mkdir('gelbooru_scraper_downloads')
-
-	dir_path = 'gelbooru_scraper_downloads'
-	session = requests.Session()
-	
-	ths: set = threaded_get_image_thumbnails(
-		tags=['outdoors', 'rating:general', '1girl'],
-		page_start_num=0,
-		end_num=-1,
-		max_threads=30
-	)
-	
-	print(len(ths)) #dbg
-	#for th in ths:
-	#	print(th['src']) #dbg
-	'''
-	q = queue.Queue()
-	for th in ths:
-		post_link = th.parent['href']
-		q.put(post_link)
-	
-	max_threads = 30
-	for _ in range(max_threads):
-		t = threading.Thread(
-			target=_download_worker,
-			args=(q, dir_path, session),
-			daemon=True
-		)
-		t.start()
-	
-	q.join()
-	'''
-
-
-def test_thumbnail()
-
-
-if __name__ == '__main__':
-	test()
 
 
