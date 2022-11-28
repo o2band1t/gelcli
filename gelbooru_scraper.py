@@ -25,7 +25,7 @@ def _thumbnail_scrape_worker(
 ) -> None:
 	
 	resp = session.get(results_page_url)
-	print(resp.status_code) #dbg
+	#print(resp.status_code) #dbg
 	soup = bs4.BeautifulSoup(resp.text, features='lxml')
 	thumbnails_list: list[bs4.Tag] = \
 		[img for img in soup.find_all('img') \
@@ -68,7 +68,7 @@ def threaded_get_image_thumbnails(tags=None, page_start_num=0, end_num=-1, max_t
 	
 	while is_blank_page_reached[0] is False:		
 		if threading.active_count() >= max_threads:
-			print('max threads reached!') #dbg
+			#print('max threads reached!') #dbg
 			continue
 		
 		results_page_url = \
@@ -132,7 +132,7 @@ def get_image_thumbnails(tags, page_start_num, end_num) -> list[bs4.Tag]:
 	while is_next_page_needed:	
 		resp = session.get(
 			BASE_SEARCH_URL 
-			+ f'&tags={stringify_tags(tags)}' 
+			+ f'&tags={_stringify_tags(tags)}' 
 			+ f'&pid={page_start1_idx}'
 		)
 		soup = bs4.BeautifulSoup(resp.text, features='lxml')
