@@ -1,4 +1,4 @@
-
+import os
 from gelbooru_scraper import *
 
 
