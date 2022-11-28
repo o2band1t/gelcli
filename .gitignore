@@ -1,4 +1,6 @@
 gelbooru_scraper_downloads/
 notes/
+__pycache__/
 *.html
 *.txt
+
