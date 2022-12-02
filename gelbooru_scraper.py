@@ -40,38 +40,31 @@ def get_image_thumbnails(tags, page_start_num, end_num) -> list[bs4.Tag]:
 	'''
 	session = requests.Session()
 	page_start1_idx: int = page_start_num
-	thumbnails: list[bs4.Tag] = []
-	
-	is_next_page_needed = True
-	while is_next_page_needed:	
+	thumbnails: list[bs4.Tag] = []	
+	while True:	
 		resp = session.get(
 			BASE_SEARCH_URL 
 			+ f'&tags={_stringify_tags(tags)}' 
 			+ f'&pid={page_start1_idx}'
 		)
 		soup = bs4.BeautifulSoup(resp.text, features='lxml')
-		
+		thumbnails_on_page = \
+			[img for img in soup.find_all('img') if 'img3' in img['src']]
+		# break if blank page
+		if len(thumbnails_on_page) == 0:
+				break
 		if end_num == -1:
-			thumbnails += \
-				[img for img in soup.find_all('img') \
-				if 'img3' in img['src']]
-			is_next_page_needed = True
+			thumbnails += thumbnails_on_page
 		else:
 			expected_length = end_num - page_start_num + 1
-			for img in soup.find_all('img'):
-				if not 'img3' in img['src']:
-					continue
-				thumbnails.append(img)
-				if len(thumbnails) == expected_length:
-					return thumbnails
-			is_next_page_needed = page_start1_idx <= end_num
-			
+			thumbnails += thumbnails_on_page[:expected_length]
+			if len(thumbnails) == expected_length:
+				break
 		# break if length of thumbnails has not changed from last iteration
 		# i.e. blank page reached, ends
 		if page_start1_idx == len(thumbnails):
 			break
 		page_start1_idx = len(thumbnails)
-	
 	return thumbnails
 
 
@@ -80,17 +73,41 @@ def download_image_from_post(url, dir_path, session=None) -> None:
 		resp = requests.get(url)
 	else:
 		resp = session.get(url)
-	
 	soup = bs4.BeautifulSoup(resp.text, features='lxml')
 	img: bs4.Tag = soup.find('img', {'id': 'image'})
-	
 	if session is None:
 		img_resp = requests.get(img['src'], stream=True)
 	else:
 		img_resp = session.get(img['src'], stream=True)
-	
 	with open(dir_path + '/' + img['src'].split('/')[-1], 'wb') as f:
 		shutil.copyfileobj(img_resp.raw, f)
 
+
+def download_images(**kw) -> None:
+	tags = kw['tags'] if 'tags' in kw else []
+	dir_path = kw['dir_path'] if 'dir_path' in kw else 'gelbooru_scraper_downloads/'
+	quantity = kw['quantity'] if 'quantity' in kw else 1
+	start = kw['start'] if 'start' in kw else 0
+	max_threads = kw['max_threads'] if 'max_threads' in kw else 10
+	
+	session = requests.Session()
+	thumbnails = get_image_thumbnails(tags, start, start + quantity - 1)
+	q: queue.Queue[str] = queue.Queue()
+	for img in thumbnails:
+		q.put(img.parent['href'])
+	
+	threads = []
+	for _ in range(max_threads):
+		threads.append(
+			threading.Thread(
+				target=_download_worker,
+				args=(q, dir_path, session),
+				daemon=True
+			)
+		)
+	for t in threads:
+		t.start()
+	for t in threads:
+		t.join()
 
 
