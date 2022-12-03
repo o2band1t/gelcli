@@ -1,5 +1,3 @@
-# written using python 3.9.7
-
 import os
 import shutil
 import requests
@@ -12,11 +10,11 @@ import argparse
 BASE_SEARCH_URL = 'https://gelbooru.com/index.php?page=post&s=list'
 
 
-def _stringify_tags(tags: list[str]) -> str:
+def _stringify_tags(tags):
 	return '+'.join(tags).replace(':', '%3a')
 
 
-def _download_worker(scrape_queue, dir_path, session) -> None:
+def _download_worker(scrape_queue, dir_path, session):
 	while not scrape_queue.empty():
 		download_image_from_post(
 			scrape_queue.get(),
@@ -28,7 +26,7 @@ def _download_worker(scrape_queue, dir_path, session) -> None:
 
 # API for scraping gelbooru
 
-def get_image_thumbnails(tags, page_start_num, end_num) -> list[bs4.Tag]:
+def get_image_thumbnails(tags, page_start_num, end_num):
 	'''
 	warning:
 
@@ -42,8 +40,8 @@ def get_image_thumbnails(tags, page_start_num, end_num) -> list[bs4.Tag]:
 	less than the expected amount of images scraped
 	'''
 	session = requests.Session()
-	page_start_idx: int = page_start_num
-	thumbnails: list[bs4.Tag] = []	
+	page_start_idx = page_start_num
+	thumbnails = []	
 	while True:	
 		resp = session.get(
 			BASE_SEARCH_URL 
@@ -72,7 +70,7 @@ def get_image_thumbnails(tags, page_start_num, end_num) -> list[bs4.Tag]:
 	return thumbnails
 
 
-def download_image_from_post(url, dir_path, session=None) -> None:
+def download_image_from_post(url, dir_path, session=None):
 	if dir_path[-1] in ('/', '\\'):
 		dir_path = dir_path [:-1]
 	if session is None:
@@ -80,7 +78,7 @@ def download_image_from_post(url, dir_path, session=None) -> None:
 	else:
 		resp = session.get(url)
 	soup = bs4.BeautifulSoup(resp.text, features='lxml')
-	img: bs4.Tag = soup.find('img', {'id': 'image'})
+	img = soup.find('img', {'id': 'image'})
 	try:	
 		if session is None:
 			img_resp = requests.get(img['src'], stream=True)
@@ -92,7 +90,7 @@ def download_image_from_post(url, dir_path, session=None) -> None:
 		print(f'Could not download media from {url} .')
 
 
-def download_images(**kw) -> None:
+def download_images(**kw):
 	tags = kw['tags'] if 'tags' in kw else []
 	dir_path = kw['dir_path'] if 'dir_path' in kw else 'downloads_gelcli/'
 	quantity = kw['quantity'] if 'quantity' in kw else 1
@@ -100,8 +98,9 @@ def download_images(**kw) -> None:
 	max_threads = kw['max_threads'] if 'max_threads' in kw else 10
 
 	session = requests.Session()
-	thumbnails = get_image_thumbnails(tags, start, start + quantity - 1)
-	q: queue.Queue[str] = queue.Queue()
+	end_num = -1 if (quantity == -1) else (start + quantity - 1)
+	thumbnails = get_image_thumbnails(tags, start, end_num)
+	q = queue.Queue()
 	for img in thumbnails:
 		q.put(img.parent['href'])
 
@@ -175,7 +174,7 @@ def main():
 	usage_args.add_argument(
 		'-q',
 		type=int,
-		help='quantity of images to download. (use -1 if all)',
+		help='quantity of images to download. Use -1 if all (BE CAREFUL USING THIS!)',
 	)
 	# tags
 	usage_args.add_argument(
