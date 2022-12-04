@@ -183,7 +183,7 @@ def main():
 		nargs='+',
 	)
 	args = parser.parse_args()
-	if (not args.q or not args.t) and (not args.sp or not args.vp):
+	if (not args.q or not args.t) and (not args.sp and not args.vp):
 		print('[*] The args -q and -t must be defined for a download to start.')
 	start_num = args.s if args.s else 0
 	max_threads = args.m if args.m else 10
