@@ -79,15 +79,15 @@ def download_image_from_post(url, dir_path, session=None):
 		resp = session.get(url)
 	soup = bs4.BeautifulSoup(resp.text, features='lxml')
 	img = soup.find('img', {'id': 'image'})
-	try:	
-		if session is None:
-			img_resp = requests.get(img['src'], stream=True)
-		else:
-			img_resp = session.get(img['src'], stream=True)
-		with open(dir_path + '/' + img['src'].split('/')[-1], 'wb') as f:
-			shutil.copyfileobj(img_resp.raw, f)
-	except TypeError:
+	if img is None:
 		print(f'Could not download media from {url} .')
+		return
+	if session is None:
+		img_resp = requests.get(img['src'], stream=True)
+	else:
+		img_resp = session.get(img['src'], stream=True)
+	with open(dir_path + '/' + img['src'].split('/')[-1], 'wb') as f:
+		shutil.copyfileobj(img_resp.raw, f)
 
 
 def download_images(**kw):
