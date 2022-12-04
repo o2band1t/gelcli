@@ -96,14 +96,12 @@ def download_images(**kw):
 	quantity = kw['quantity'] if 'quantity' in kw else 1
 	start = kw['start'] if 'start' in kw else 0
 	max_threads = kw['max_threads'] if 'max_threads' in kw else 10
-
 	session = requests.Session()
 	end_num = -1 if (quantity == -1) else (start + quantity - 1)
 	thumbnails = get_image_thumbnails(tags, start, end_num)
 	q = queue.Queue()
 	for img in thumbnails:
 		q.put(img.parent['href'])
-
 	threads = []
 	for _ in range(max_threads):
 		threads.append(
@@ -125,7 +123,6 @@ def main():
 	if not os.path.exists('default_dldir_path.txt'):
 		with open('default_dldir_path.txt', 'w') as f:
 			f.write('downloads_gelcli')
-	
 	parser = argparse.ArgumentParser()
 	parser._action_groups.pop() # remove "optional arguments" category from -h print
 	dpconfig_args = parser.add_argument_group(
@@ -183,17 +180,13 @@ def main():
 		help='spaced string of tags that images should match. (e.g.) outdoors rating:general grass',
 		nargs='+',
 	)
-	
 	args = parser.parse_args()
-
 	if not args.q or not args.t:
 		print('\n[*] The args -q and -t must be defined for a download to start.\n')
-	
 	start_num = args.s if args.s else 0
 	max_threads = args.m if args.m else 10
 	with open('default_dldir_path.txt', 'r') as f:
 		dldir = args.d if args.d else f.read()
-
 	if args.t and args.q:
 		# args.t is a list of lists of strings
 		tags = [''.join(tag) for tag in args.t] 
@@ -205,7 +198,6 @@ def main():
 			max_threads=max_threads
 		)
 		print(f'Images have finshed downloading to "{dldir}" .')
-
 	if args.sp:
 		with open('default_dldir_path.txt', 'w') as f:
 			f.write(args.sp)
